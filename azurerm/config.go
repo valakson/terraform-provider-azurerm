@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -92,6 +91,7 @@ type ArmClient struct {
 	usingServicePrincipal    bool
 	environment              azure.Environment
 	skipProviderRegistration bool
+	terraformVersion         string
 
 	StopContext context.Context
 
@@ -266,7 +266,7 @@ type ArmClient struct {
 }
 
 func (c *ArmClient) configureClient(client *autorest.Client, auth autorest.Authorizer) {
-	setUserAgent(client, c.partnerId)
+	c.setUserAgent(client, c.partnerId)
 	client.Authorizer = auth
 	client.RequestInspector = common.WithCorrelationRequestID(common.CorrelationRequestID())
 	client.Sender = sender.BuildSender("AzureRM")
@@ -274,18 +274,15 @@ func (c *ArmClient) configureClient(client *autorest.Client, auth autorest.Autho
 	client.PollingDuration = 180 * time.Minute
 }
 
-func setUserAgent(client *autorest.Client, partnerID string) {
-	// TODO: This is the SDK version not the CLI version, once we are on 0.12, should revisit
-	tfUserAgent := httpclient.UserAgentString()
-
-	pv := version.ProviderVersion
-	providerUserAgent := fmt.Sprintf("%s terraform-provider-azurerm/%s", tfUserAgent, pv)
-	client.UserAgent = strings.TrimSpace(fmt.Sprintf("%s %s", client.UserAgent, providerUserAgent))
-
+func (c *ArmClient) setUserAgent(client *autorest.Client, partnerID string) {
+	ua := httpclient.UserAgent(c.terraformVersion)
+	ua = ua.Append(&httpclient.UAProduct{
+		"terraform-provider-azurerm", version.ProviderVersion, "",
+	})
+	ua = ua.AppendString(client.UserAgent)
 	// append the CloudShell version to the user agent if it exists
-	if azureAgent := os.Getenv("AZURE_HTTP_USER_AGENT"); azureAgent != "" {
-		client.UserAgent = fmt.Sprintf("%s %s", client.UserAgent, azureAgent)
-	}
+	ua = ua.AppendString(os.Getenv("AZURE_HTTP_USER_AGENT"))
+	client.UserAgent = ua.String()
 
 	if partnerID != "" {
 		client.UserAgent = fmt.Sprintf("%s pid-%s", client.UserAgent, partnerID)
@@ -296,7 +293,7 @@ func setUserAgent(client *autorest.Client, partnerID string) {
 
 // getArmClient is a helper method which returns a fully instantiated
 // *ArmClient based on the Config's current settings.
-func getArmClient(c *authentication.Config, skipProviderRegistration bool, partnerId string) (*ArmClient, error) {
+func getArmClient(c *authentication.Config, skipProviderRegistration bool, partnerId, tfVersion string) (*ArmClient, error) {
 	env, err := authentication.DetermineEnvironment(c.Environment)
 	if err != nil {
 		return nil, err
@@ -311,6 +308,7 @@ func getArmClient(c *authentication.Config, skipProviderRegistration bool, partn
 		environment:              *env,
 		usingServicePrincipal:    c.AuthenticatedAsAServicePrincipal,
 		skipProviderRegistration: skipProviderRegistration,
+		terraformVersion:         tfVersion,
 	}
 
 	oauthConfig, err := adal.NewOAuthConfig(env.ActiveDirectoryEndpoint, c.TenantID)
@@ -581,7 +579,7 @@ func (c *ArmClient) registerDatabases(endpoint, subscriptionId string, auth auto
 	c.sqlDatabasesClient = sqlDBClient
 
 	sqlDTDPClient := sql.NewDatabaseThreatDetectionPoliciesClientWithBaseURI(endpoint, subscriptionId)
-	setUserAgent(&sqlDTDPClient.Client, "")
+	c.setUserAgent(&sqlDTDPClient.Client, "")
 	sqlDTDPClient.Authorizer = auth
 	sqlDTDPClient.Sender = sender
 	sqlDTDPClient.SkipResourceProviderRegistration = c.skipProviderRegistration
