@@ -74,14 +74,14 @@ func resourceArmApiManagementAPIPolicyCreateUpdate(d *schema.ResourceData, meta 
 
 	if xmlContent != "" {
 		parameters.PolicyContractProperties = &apimanagement.PolicyContractProperties{
-			ContentFormat: apimanagement.XML,
+			ContentFormat: apimanagement.Rawxml,
 			PolicyContent: utils.String(xmlContent),
 		}
 	}
 
 	if xmlLink != "" {
 		parameters.PolicyContractProperties = &apimanagement.PolicyContractProperties{
-			ContentFormat: apimanagement.XMLLink,
+			ContentFormat: apimanagement.Rawxml,
 			PolicyContent: utils.String(xmlLink),
 		}
 	}
