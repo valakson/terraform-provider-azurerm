@@ -40,6 +40,12 @@ func expandXmlTokensFromString(input string) ([]xml.Token, error) {
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
+			if text == "\r" || text == "\n" {
+				continue
+			}
+			if text == "\t" || text == "	" || text == "    " {
+				continue
+			}
 		}
 		tokens = append(tokens, xml.CopyToken(token))
 	}

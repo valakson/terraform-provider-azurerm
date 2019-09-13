@@ -69,6 +69,12 @@ func TestXmlDiff(t *testing.T) {
 			XmlB:     "<r>\r\n\t<c attr='test'>\r\n\t</c>\r\n</r>",
 			Suppress: true,
 		},
+		{
+			Name:     "Tabs Difference",
+			XmlA:     "<policies>\r\n\t<inbound>\r\n\t\t<set-variable name=\"abc\" value=\"@(context.Request.Headers.GetValueOrDefault(&quot;X-Header-Name&quot;, &quot;&quot;))\" />\r\n\t\t<find-and-replace from=\"xyz\" to=\"abc\" />\r\n\t</inbound>\r\n</policies>",
+			XmlB:     "<policies>\n    <inbound>\n    <set-variable name=\"abc\" value=\"@(context.Request.Headers.GetValueOrDefault(&quot;X-Header-Name&quot;, &quot;&quot;))\" />\n    <find-and-replace from=\"xyz\" to=\"abc\" />\n    </inbound>\n</policies>\n",
+			Suppress: true,
+		},
 	}
 
 	for _, tc := range cases {
