@@ -1454,14 +1454,21 @@ func flattenAzureRmKubernetesClusterServicePrincipalProfile(profile *containerse
 	}
 
 	// client secret isn't returned by the API so pass the existing value along
+	log.Printf("ktkt 0")
 	if v, ok := d.GetOk("service_principal.0.client_secret"); ok {
+		log.Printf("ktkt SPLIST ")
 		values["client_secret"] = v.(string)
 	} else { // service_principal went from a set to a list in 1.34, support set upgrade path:
+		log.Printf("ktkt SPSET ")
 		if v, ok := d.GetOk("service_principal"); ok {
+			log.Printf("ktkt 1: %v", v)
 			if s, ok := v.(*schema.Set); ok {
+				log.Printf("ktkt 2: %v", s)
 				if l := s.List(); len(l) > 0 {
+					log.Printf("ktkt 3")
 					b := l[0].(map[string]interface{})
 					if p, ok := b["client_secret"]; ok {
+						log.Printf("ktkt 4")
 						values["client_secret"] = p.(string)
 					}
 				}
