@@ -1002,9 +1002,10 @@ func FlattenVirtualMachineScaleSetSourceImageReference(input *compute.ImageRefer
 
 func VirtualMachineScaleSetAutomatedOSUpgradePolicySchema() *schema.Schema {
 	return &schema.Schema{
-		Type:     schema.TypeList,
-		Optional: true,
-		MaxItems: 1,
+		Type:          schema.TypeList,
+		Optional:      true,
+		ConflictsWith: []string{"rolling_upgrade_policy"},
+		MaxItems:      1,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
 				// TODO: should these be optional + defaulted?
@@ -1023,9 +1024,10 @@ func VirtualMachineScaleSetAutomatedOSUpgradePolicySchema() *schema.Schema {
 
 func VirtualMachineScaleSetRollingUpgradePolicySchema() *schema.Schema {
 	return &schema.Schema{
-		Type:     schema.TypeList,
-		Optional: true,
-		MaxItems: 1,
+		Type:          schema.TypeList,
+		Optional:      true,
+		ConflictsWith: []string{"automatic_os_upgrade_policy"},
+		MaxItems:      1,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
 				// whilst this isn't present in the nested object it's required when this is specified
