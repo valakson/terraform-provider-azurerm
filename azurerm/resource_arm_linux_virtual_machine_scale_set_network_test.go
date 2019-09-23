@@ -1286,13 +1286,6 @@ func testAccAzureRMLinuxVirtualMachineScaleSet_networkMultipleIPConfigurations(r
 	return fmt.Sprintf(`
 %s
 
-resource "azurerm_subnet" "secondary" {
-  name                 = "secondary"
-  resource_group_name  = azurerm_resource_group.test.name
-  virtual_network_name = azurerm_virtual_network.test.name
-  address_prefix       = "10.0.3.0/24"
-}
-
 resource "azurerm_linux_virtual_machine_scale_set" "test" {
   name                = "acctestvmss-%d"
   resource_group_name = azurerm_resource_group.test.name
@@ -1327,7 +1320,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "test" {
 
     ip_configuration {
       name      = "secondary"
-      subnet_id = azurerm_subnet.secondary.id
+      subnet_id = azurerm_subnet.test.id
     }
   }
 }
@@ -1508,7 +1501,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "test" {
   name                = "acctestvmss-%d"
   resource_group_name = azurerm_resource_group.test.name
   location            = azurerm_resource_group.test.location
-  sku                 = "Standard_F2"
+  sku                 = "Standard_D2s_v3"
   instances           = 1
   admin_username      = "adminuser"
   admin_password      = "P@ssword1234!"
