@@ -405,68 +405,6 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesBalance(t *testing.T)
 	})
 }
 
-func TestAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesBalanceUpdate(t *testing.T) {
-	resourceName := "azurerm_linux_virtual_machine_scale_set.test"
-	ri := tf.AccRandTimeInt()
-	location := testLocation()
-
-	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t) },
-		Providers:    testAccProviders,
-		CheckDestroy: testCheckAzureRMLinuxVirtualMachineScaleSetDestroy,
-		Steps: []resource.TestStep{
-			{
-				// Disabled
-				Config: testAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesMultiple(ri, location),
-				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
-				),
-			},
-			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateVerifyIgnore: []string{
-					// not returned from the API
-					"admin_password",
-				},
-			},
-			{
-				// Enabled
-				Config: testAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesBalance(ri, location),
-				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
-				),
-			},
-			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateVerifyIgnore: []string{
-					// not returned from the API
-					"admin_password",
-				},
-			},
-			{
-				// Disabled
-				Config: testAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesMultiple(ri, location),
-				Check: resource.ComposeTestCheckFunc(
-					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
-				),
-			},
-			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateVerifyIgnore: []string{
-					// not returned from the API
-					"admin_password",
-				},
-			},
-		},
-	})
-}
-
 func testAccAzureRMLinuxVirtualMachineScaleSet_scalingAutoScale(rInt int, location string) string {
 	template := testAccAzureRMLinuxVirtualMachineScaleSet_template(rInt, location)
 	return fmt.Sprintf(`

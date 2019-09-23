@@ -191,6 +191,7 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 			"zone_balance": {
 				Type:     schema.TypeBool,
 				Optional: true,
+				ForceNew: true,
 				Default:  false,
 			},
 
