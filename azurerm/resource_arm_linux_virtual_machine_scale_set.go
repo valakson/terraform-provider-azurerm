@@ -769,14 +769,48 @@ func resourceArmLinuxVirtualMachineScaleSetDelete(d *schema.ResourceData, meta i
 	name := id.Name
 	resourceGroup := id.Base.ResourceGroup
 
+	resp, err := client.Get(ctx, resourceGroup, name)
+	if err != nil {
+		if utils.ResponseWasNotFound(resp.Response) {
+			return nil
+		}
+
+		return fmt.Errorf("Error retrieving Linux Virtual Machine Scale Set %q (Resource Group %q): %+v", name, resourceGroup, err)
+	}
+
+	if resp.Sku != nil {
+		resp.Sku.Capacity = utils.Int64(int64(0))
+
+		log.Printf("[DEBUG] Scaling instances to 0 prior to deletion - this helps avoids networking issues within Azure")
+		update := compute.VirtualMachineScaleSetUpdate{
+			Sku: resp.Sku,
+		}
+		future, err := client.Update(ctx, resourceGroup, name, update)
+		if err != nil {
+			return fmt.Errorf("Error updating number of instances in Linux Virtual Machine Scale Set %q (Resource Group %q) to scale to 0: %+v", name, resourceGroup, err)
+		}
+
+		log.Printf("[DEBUG] Waiting for scaling of instances to 0 prior to deletion - this helps avoids networking issues within Azure")
+		err = future.WaitForCompletionRef(ctx, client.Client)
+		if err != nil {
+			return fmt.Errorf("Error waiting for number of instances in Linux Virtual Machine Scale Set %q (Resource Group %q) to scale to 0: %+v", name, resourceGroup, err)
+		}
+		log.Printf("[DEBUG] Scaled instances to 0 prior to deletion - this helps avoids networking issues within Azure")
+	} else {
+		log.Printf("[DEBUG] Unable to scale instances to `0` since the `sku` block is nil - trying to delete anyway")
+	}
+
+	log.Printf("[DEBUG] Deleting Linux Virtual Machine Scale Set %q (Resource Group %q)..", name, resourceGroup)
 	future, err := client.Delete(ctx, resourceGroup, name)
 	if err != nil {
 		return fmt.Errorf("Error deleting Linux Virtual Machine Scale Set %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
 
+	log.Printf("[DEBUG] Waiting for deletion of Linux Virtual Machine Scale Set %q (Resource Group %q)..", name, resourceGroup)
 	if err := future.WaitForCompletionRef(ctx, client.Client); err != nil {
 		return fmt.Errorf("Error waiting for deletion of Linux Virtual Machine Scale Set %q (Resource Group %q): %+v", name, resourceGroup, err)
 	}
+	log.Printf("[DEBUG] Deleted Linux Virtual Machine Scale Set %q (Resource Group %q).", name, resourceGroup)
 
 	return nil
 }
