@@ -511,7 +511,7 @@ resource "azurerm_monitor_autoscale_setting" "test" {
   name                = "autoscale-config"
   resource_group_name = azurerm_resource_group.test.name
   location            = azurerm_resource_group.test.location
-  target_resource_id  = azurerm_virtual_machine_scale_set.test.id
+  target_resource_id  = azurerm_linux_virtual_machine_scale_set.test.id
 
   profile {
     name = "AutoScale"
@@ -525,7 +525,7 @@ resource "azurerm_monitor_autoscale_setting" "test" {
     rule {
       metric_trigger {
         metric_name        = "Percentage CPU"
-        metric_resource_id = azurerm_virtual_machine_scale_set.test.id
+        metric_resource_id = azurerm_linux_virtual_machine_scale_set.test.id
         time_grain         = "PT1M"
         statistic          = "Average"
         time_window        = "PT5M"
@@ -545,7 +545,7 @@ resource "azurerm_monitor_autoscale_setting" "test" {
     rule {
       metric_trigger {
         metric_name        = "Percentage CPU"
-        metric_resource_id = azurerm_virtual_machine_scale_set.test.id
+        metric_resource_id = azurerm_linux_virtual_machine_scale_set.test.id
         time_grain         = "PT1M"
         statistic          = "Average"
         time_window        = "PT5M"
