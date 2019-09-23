@@ -505,7 +505,6 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 
 	if d.HasChange("network_interface") {
 		updateConfig = true
-		updateInstances = true
 
 		networkInterfacesRaw := d.Get("network_interface").([]interface{})
 		networkInterfaces, err := computeSvc.ExpandVirtualMachineScaleSetNetworkInterfaceUpdate(networkInterfacesRaw)
