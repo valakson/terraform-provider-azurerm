@@ -8,7 +8,34 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/tf"
 )
 
-// autoscaling integration?
+func TestAccAzureRMLinuxVirtualMachineScaleSet_scalingAutoScale(t *testing.T) {
+	resourceName := "azurerm_linux_virtual_machine_scale_set.test"
+	ri := tf.AccRandTimeInt()
+	location := testLocation()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMLinuxVirtualMachineScaleSetDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_scalingAutoScale(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					// not returned from the API
+					"admin_password",
+				},
+			},
+		},
+	})
+}
 
 func TestAccAzureRMLinuxVirtualMachineScaleSet_scalingInstanceCount(t *testing.T) {
 	resourceName := "azurerm_linux_virtual_machine_scale_set.test"
@@ -438,6 +465,105 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesBalanceUpdate(t *test
 			},
 		},
 	})
+}
+
+func testAccAzureRMLinuxVirtualMachineScaleSet_scalingAutoScale(rInt int, location string) string {
+	template := testAccAzureRMLinuxVirtualMachineScaleSet_template(rInt, location)
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_linux_virtual_machine_scale_set" "test" {
+  name                 = "acctestvmss-%d"
+  resource_group_name  = azurerm_resource_group.test.name
+  location             = azurerm_resource_group.test.location
+  sku                  = "Standard_F2"
+  instances            = 2
+  admin_username       = "adminuser"
+  admin_password       = "P@ssword1234!"
+  disable_password_authentication = false
+  overprovision = true
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "16.04-LTS"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+
+  network_interface {
+    name    = "example"
+    primary = true
+
+    ip_configuration {
+      name      = "internal"
+      primary   = true
+      subnet_id = azurerm_subnet.test.id
+    }
+  }
+}
+
+resource "azurerm_monitor_autoscale_setting" "test" {
+  name                = "autoscale-config"
+  resource_group_name = azurerm_resource_group.test.name
+  location            = azurerm_resource_group.test.location
+  target_resource_id  = azurerm_virtual_machine_scale_set.test.id
+
+  profile {
+    name = "AutoScale"
+
+    capacity {
+      default = 2
+      minimum = 1
+      maximum = 5
+    }
+
+    rule {
+      metric_trigger {
+        metric_name        = "Percentage CPU"
+        metric_resource_id = azurerm_virtual_machine_scale_set.test.id
+        time_grain         = "PT1M"
+        statistic          = "Average"
+        time_window        = "PT5M"
+        time_aggregation   = "Average"
+        operator           = "GreaterThan"
+        threshold          = 75
+      }
+
+      scale_action {
+        direction = "Increase"
+        type      = "ChangeCount"
+        value     = "1"
+        cooldown  = "PT1M"
+      }
+    }
+
+    rule {
+      metric_trigger {
+        metric_name        = "Percentage CPU"
+        metric_resource_id = azurerm_virtual_machine_scale_set.test.id
+        time_grain         = "PT1M"
+        statistic          = "Average"
+        time_window        = "PT5M"
+        time_aggregation   = "Average"
+        operator           = "LessThan"
+        threshold          = 25
+      }
+
+      scale_action {
+        direction = "Decrease"
+        type      = "ChangeCount"
+        value     = "1"
+        cooldown  = "PT1M"
+      }
+    }
+  }
+}
+`, template, rInt)
 }
 
 func testAccAzureRMLinuxVirtualMachineScaleSet_scalingInstanceCount(rInt int, location string, instanceCount int) string {
