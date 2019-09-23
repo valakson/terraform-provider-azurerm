@@ -4,13 +4,76 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hashicorp/terraform/helper/acctest"
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/tf"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/features"
 )
 
 // TODO: secrets
-// TODO: BootDiagnostics
+
+func TestAccAzureRMLinuxVirtualMachineScaleSet_otherBootDiagnostics(t *testing.T) {
+	resourceName := "azurerm_linux_virtual_machine_scale_set.test"
+	ri := tf.AccRandTimeInt()
+	rs := acctest.RandString(5)
+	location := testLocation()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMLinuxVirtualMachineScaleSetDestroy,
+		Steps: []resource.TestStep{
+			{
+				// Enabled
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherBootDiagnostics(ri, location, rs),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					// not returned from the API
+					"admin_password",
+				},
+			},
+			{
+				// Removed
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherBootDiagnosticsDisabled(ri, location, rs),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					// not returned from the API
+					"admin_password",
+				},
+			},
+			{
+				// Enabled
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherBootDiagnostics(ri, location, rs),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					// not returned from the API
+					"admin_password",
+				},
+			},
+		},
+	})
+}
 
 func TestAccAzureRMLinuxVirtualMachineScaleSet_otherComputerNamePrefix(t *testing.T) {
 	resourceName := "azurerm_linux_virtual_machine_scale_set.test"
@@ -381,6 +444,108 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_otherVMAgentDisabled(t *testing.T
 			},
 		},
 	})
+}
+
+func testAccAzureRMLinuxVirtualMachineScaleSet_otherBootDiagnostics(rInt int, location string, rString string) string {
+	template := testAccAzureRMLinuxVirtualMachineScaleSet_template(rInt, location)
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_storage_account" "test" {
+  name                     = "accsa%s"
+  resource_group_name      = azurerm_resource_group.test.name
+  location                 = azurerm_resource_group.test.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+}
+
+resource "azurerm_linux_virtual_machine_scale_set" "test" {
+  name                 = "acctestvmss-%d"
+  resource_group_name  = azurerm_resource_group.test.name
+  location             = azurerm_resource_group.test.location
+  sku                  = "Standard_F2"
+  instances            = 1
+  admin_username       = "adminuser"
+  admin_password       = "P@ssword1234!"
+  disable_password_authentication = false
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "16.04-LTS"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+
+  network_interface {
+    name    = "example"
+    primary = true
+
+    ip_configuration {
+      name      = "internal"
+      primary   = true
+      subnet_id = azurerm_subnet.test.id
+    }
+  }
+
+  boot_diagnostics {
+    storage_account_uri = azurerm_storage_account.test.primary_blob_endpoint
+  }
+}
+`, template, rString, rInt)
+}
+
+func testAccAzureRMLinuxVirtualMachineScaleSet_otherBootDiagnosticsDisabled(rInt int, location string, rString string) string {
+	template := testAccAzureRMLinuxVirtualMachineScaleSet_template(rInt, location)
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_storage_account" "test" {
+  name                     = "accsa%s"
+  resource_group_name      = azurerm_resource_group.test.name
+  location                 = azurerm_resource_group.test.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+}
+
+resource "azurerm_linux_virtual_machine_scale_set" "test" {
+  name                 = "acctestvmss-%d"
+  resource_group_name  = azurerm_resource_group.test.name
+  location             = azurerm_resource_group.test.location
+  sku                  = "Standard_F2"
+  instances            = 1
+  admin_username       = "adminuser"
+  admin_password       = "P@ssword1234!"
+  disable_password_authentication = false
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "16.04-LTS"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+
+  network_interface {
+    name    = "example"
+    primary = true
+
+    ip_configuration {
+      name      = "internal"
+      primary   = true
+      subnet_id = azurerm_subnet.test.id
+    }
+  }
+}
+`, template, rString, rInt)
 }
 
 func testAccAzureRMLinuxVirtualMachineScaleSet_otherComputerNamePrefix(rInt int, location string) string {

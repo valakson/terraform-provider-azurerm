@@ -85,6 +85,62 @@ func FlattenVirtualMachineScaleSetAdditionalCapabilities(input *compute.Addition
 	}
 }
 
+func VirtualMachineScaleSetBootDiagnosticsSchema() *schema.Schema {
+	return &schema.Schema{
+		Type:     schema.TypeList,
+		Optional: true,
+		MaxItems: 1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"storage_account_uri": {
+					Type:     schema.TypeString,
+					Required: true,
+					// TODO: validation
+				},
+			},
+		},
+	}
+}
+
+func ExpandVirtualMachineScaleSetBootDiagnostics(input []interface{}) *compute.DiagnosticsProfile {
+	if len(input) == 0 {
+		return &compute.DiagnosticsProfile{
+			BootDiagnostics: &compute.BootDiagnostics{
+				Enabled:    utils.Bool(false),
+				StorageURI: utils.String(""),
+			},
+		}
+	}
+
+	raw := input[0].(map[string]interface{})
+
+	storageAccountURI := raw["storage_account_uri"].(string)
+
+	return &compute.DiagnosticsProfile{
+		BootDiagnostics: &compute.BootDiagnostics{
+			Enabled:    utils.Bool(true),
+			StorageURI: utils.String(storageAccountURI),
+		},
+	}
+}
+
+func FlattenVirtualMachineScaleSetBootDiagnostics(input *compute.DiagnosticsProfile) []interface{} {
+	if input == nil || input.BootDiagnostics == nil || input.BootDiagnostics.Enabled == nil || !*input.BootDiagnostics.Enabled {
+		return []interface{}{}
+	}
+
+	storageAccountUri := ""
+	if input.BootDiagnostics.StorageURI != nil {
+		storageAccountUri = *input.BootDiagnostics.StorageURI
+	}
+
+	return []interface{}{
+		map[string]interface{}{
+			"storage_account_uri": storageAccountUri,
+		},
+	}
+}
+
 func VirtualMachineScaleSetNetworkInterfaceSchema() *schema.Schema {
 	return &schema.Schema{
 		Type:     schema.TypeList,

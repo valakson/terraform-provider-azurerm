@@ -78,6 +78,8 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 
 			"automatic_os_upgrade_policy": computeSvc.VirtualMachineScaleSetAutomatedOSUpgradePolicySchema(),
 
+			"boot_diagnostics": computeSvc.VirtualMachineScaleSetBootDiagnosticsSchema(),
+
 			"computer_name_prefix": {
 				Type:     schema.TypeString,
 				Optional: true,
@@ -229,6 +231,9 @@ func resourceArmLinuxVirtualMachineScaleSetCreate(d *schema.ResourceData, meta i
 	additionalCapabilitiesRaw := d.Get("additional_capabilities").([]interface{})
 	additionalCapabilities := computeSvc.ExpandVirtualMachineScaleSetAdditionalCapabilities(additionalCapabilitiesRaw)
 
+	bootDiagnosticsRaw := d.Get("boot_diagnostics").([]interface{})
+	bootDiagnostics := computeSvc.ExpandVirtualMachineScaleSetBootDiagnostics(bootDiagnosticsRaw)
+
 	dataDisksRaw := d.Get("data_disk").([]interface{})
 	dataDisks := computeSvc.ExpandVirtualMachineScaleSetDataDisk(dataDisksRaw)
 
@@ -310,8 +315,8 @@ func resourceArmLinuxVirtualMachineScaleSetCreate(d *schema.ResourceData, meta i
 			},
 			// TODO: secrets
 		},
-		// TODO: DiagnosticsProfile:
-		NetworkProfile: networkProfile,
+		DiagnosticsProfile: bootDiagnostics,
+		NetworkProfile:     networkProfile,
 		StorageProfile: &compute.VirtualMachineScaleSetStorageProfile{
 			ImageReference: sourceImageReference,
 			OsDisk:         osDisk,
@@ -429,11 +434,10 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 	updateConfig := false
 	updateInstances := false
 
-	update := compute.VirtualMachineScaleSetUpdate{
-		VirtualMachineScaleSetUpdateProperties: &compute.VirtualMachineScaleSetUpdateProperties{
-			VirtualMachineProfile: &compute.VirtualMachineScaleSetUpdateVMProfile{},
-		},
+	updateProps := compute.VirtualMachineScaleSetUpdateProperties{
+		VirtualMachineProfile: &compute.VirtualMachineScaleSetUpdateVMProfile{},
 	}
+	update := compute.VirtualMachineScaleSetUpdate{}
 
 	if d.HasChange("max_bid_price") {
 		priority := compute.VirtualMachinePriorityTypes(d.Get("priority").(string))
@@ -441,14 +445,14 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 			return fmt.Errorf("`max_bid_price` can only be configured when `priority` is set to `Low`")
 		}
 
-		update.VirtualMachineProfile.BillingProfile = &compute.BillingProfile{
+		updateProps.VirtualMachineProfile.BillingProfile = &compute.BillingProfile{
 			MaxPrice: utils.Float(d.Get("max_bid_price").(float64)),
 		}
 	}
 
 	if d.HasChange("single_placement_group") {
 		// TODO: do we need to call `ConvertToSinglePlacementGroup` here too?
-		update.SinglePlacementGroup = utils.Bool(d.Get("single_placement_group").(bool))
+		updateProps.SinglePlacementGroup = utils.Bool(d.Get("single_placement_group").(bool))
 	}
 
 	// TODO: secrets
@@ -457,7 +461,7 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 
 		sshKeysRaw := d.Get("admin_ssh_key").(*schema.Set).List()
 		sshKeys := computeSvc.ExpandSSHKeys(sshKeysRaw)
-		update.VirtualMachineProfile.OsProfile = &compute.VirtualMachineScaleSetUpdateOSProfile{
+		updateProps.VirtualMachineProfile.OsProfile = &compute.VirtualMachineScaleSetUpdateOSProfile{
 			LinuxConfiguration: &compute.LinuxConfiguration{
 				DisablePasswordAuthentication: utils.Bool(d.Get("disable_password_authentication").(bool)),
 				ProvisionVMAgent:              utils.Bool(d.Get("provision_vm_agent").(bool)),
@@ -468,7 +472,7 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 		}
 
 		if v, ok := d.GetOk("custom_data"); ok {
-			update.VirtualMachineProfile.OsProfile.CustomData = utils.String(v.(string))
+			updateProps.VirtualMachineProfile.OsProfile.CustomData = utils.String(v.(string))
 			// TODO: if we update the customData do we need to cycle the nodes?
 		}
 	}
@@ -500,7 +504,7 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 			storageProfile.ImageReference = sourceImageReference
 		}
 
-		update.VirtualMachineProfile.StorageProfile = storageProfile
+		updateProps.VirtualMachineProfile.StorageProfile = storageProfile
 	}
 
 	if d.HasChange("network_interface") {
@@ -512,12 +516,17 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 			return fmt.Errorf("Error expanding `network_interface`: %+v", err)
 		}
 
-		update.VirtualMachineProfile.NetworkProfile = &compute.VirtualMachineScaleSetUpdateNetworkProfile{
+		updateProps.VirtualMachineProfile.NetworkProfile = &compute.VirtualMachineScaleSetUpdateNetworkProfile{
 			NetworkInterfaceConfigurations: networkInterfaces,
 		}
 	}
 
-	// TODO: diags
+	if d.HasChange("boot_diagnostics") {
+		updateConfig = true
+
+		bootDiagnosticsRaw := d.Get("boot_diagnostics").([]interface{})
+		updateProps.VirtualMachineProfile.DiagnosticsProfile = computeSvc.ExpandVirtualMachineScaleSetBootDiagnostics(bootDiagnosticsRaw)
+	}
 
 	if d.HasChange("sku") || d.HasChange("instances") {
 		updateConfig = true
@@ -549,6 +558,8 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 
 		update.Tags = tags.Expand(d.Get("tags").(map[string]interface{}))
 	}
+
+	update.VirtualMachineScaleSetUpdateProperties = &updateProps
 
 	if updateConfig {
 		log.Printf("[DEBUG] Updating Linux Virtual Machine Scale Set %q (Resource Group %q)..", name, resourceGroup)
@@ -682,6 +693,10 @@ func resourceArmLinuxVirtualMachineScaleSetRead(d *schema.ResourceData, meta int
 
 	var healthProbeId *string
 	if profile := props.VirtualMachineProfile; profile != nil {
+		if err := d.Set("boot_diagnostics", computeSvc.FlattenVirtualMachineScaleSetBootDiagnostics(profile.DiagnosticsProfile)); err != nil {
+			return fmt.Errorf("Error setting `boot_diagnostics`: %+v", err)
+		}
+
 		// defaulted since BillingProfile isn't returned if it's unset
 		maxBidPrice := float64(-1.0)
 		if profile.BillingProfile != nil && profile.BillingProfile.MaxPrice != nil {
