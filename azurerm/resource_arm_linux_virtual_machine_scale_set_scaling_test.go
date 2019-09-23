@@ -390,7 +390,7 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesBalanceUpdate(t *test
 		Steps: []resource.TestStep{
 			{
 				// Disabled
-				Config: testAccAzureRMLinuxVirtualMachineScaleSet_authPassword(ri, location),
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesMultiple(ri, location),
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
 				),
@@ -422,7 +422,7 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesBalanceUpdate(t *test
 			},
 			{
 				// Disabled
-				Config: testAccAzureRMLinuxVirtualMachineScaleSet_authPassword(ri, location),
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_scalingZonesMultiple(ri, location),
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
 				),
