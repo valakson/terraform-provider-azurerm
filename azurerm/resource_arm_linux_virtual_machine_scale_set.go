@@ -233,7 +233,10 @@ func resourceArmLinuxVirtualMachineScaleSetCreate(d *schema.ResourceData, meta i
 	dataDisks := computeSvc.ExpandVirtualMachineScaleSetDataDisk(dataDisksRaw)
 
 	networkInterfacesRaw := d.Get("network_interface").([]interface{})
-	networkInterfaces := computeSvc.ExpandVirtualMachineScaleSetNetworkInterface(networkInterfacesRaw)
+	networkInterfaces, err := computeSvc.ExpandVirtualMachineScaleSetNetworkInterface(networkInterfacesRaw)
+	if err != nil {
+		return fmt.Errorf("Error expanding `network_interface`: %+v", err)
+	}
 
 	osDiskRaw := d.Get("os_disk").([]interface{})
 	osDisk := computeSvc.ExpandVirtualMachineScaleSetOSDisk(osDiskRaw, compute.Linux)
@@ -505,7 +508,11 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 		updateInstances = true
 
 		networkInterfacesRaw := d.Get("network_interface").([]interface{})
-		networkInterfaces := computeSvc.ExpandVirtualMachineScaleSetNetworkInterfaceUpdate(networkInterfacesRaw)
+		networkInterfaces, err := computeSvc.ExpandVirtualMachineScaleSetNetworkInterfaceUpdate(networkInterfacesRaw)
+		if err != nil {
+			return fmt.Errorf("Error expanding `network_interface`: %+v", err)
+		}
+
 		update.VirtualMachineProfile.NetworkProfile = &compute.VirtualMachineScaleSetUpdateNetworkProfile{
 			NetworkInterfaceConfigurations: networkInterfaces,
 		}

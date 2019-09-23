@@ -267,7 +267,7 @@ func virtualMachineScaleSetPublicIPAddressSchema() *schema.Schema {
 	}
 }
 
-func ExpandVirtualMachineScaleSetNetworkInterface(input []interface{}) *[]compute.VirtualMachineScaleSetNetworkConfiguration {
+func ExpandVirtualMachineScaleSetNetworkInterface(input []interface{}) (*[]compute.VirtualMachineScaleSetNetworkConfiguration, error) {
 	output := make([]compute.VirtualMachineScaleSetNetworkConfiguration, 0)
 
 	for _, v := range input {
@@ -279,8 +279,12 @@ func ExpandVirtualMachineScaleSetNetworkInterface(input []interface{}) *[]comput
 		ipConfigurationsRaw := raw["ip_configuration"].([]interface{})
 		for _, configV := range ipConfigurationsRaw {
 			configRaw := configV.(map[string]interface{})
-			ipConfiguration := expandVirtualMachineScaleSetIPConfiguration(configRaw)
-			ipConfigurations = append(ipConfigurations, ipConfiguration)
+			ipConfiguration, err := expandVirtualMachineScaleSetIPConfiguration(configRaw)
+			if err != nil {
+				return nil, err
+			}
+
+			ipConfigurations = append(ipConfigurations, *ipConfiguration)
 		}
 
 		config := compute.VirtualMachineScaleSetNetworkConfiguration{
@@ -305,10 +309,10 @@ func ExpandVirtualMachineScaleSetNetworkInterface(input []interface{}) *[]comput
 		output = append(output, config)
 	}
 
-	return &output
+	return &output, nil
 }
 
-func expandVirtualMachineScaleSetIPConfiguration(raw map[string]interface{}) compute.VirtualMachineScaleSetIPConfiguration {
+func expandVirtualMachineScaleSetIPConfiguration(raw map[string]interface{}) (*compute.VirtualMachineScaleSetIPConfiguration, error) {
 	applicationGatewayBackendAddressPoolIdsRaw := raw["application_gateway_backend_address_pool_ids"].(*schema.Set).List()
 	applicationGatewayBackendAddressPoolIds := expandIDsToSubResources(applicationGatewayBackendAddressPoolIdsRaw)
 
@@ -321,11 +325,17 @@ func expandVirtualMachineScaleSetIPConfiguration(raw map[string]interface{}) com
 	loadBalancerInboundNatPoolIdsRaw := raw["load_balancer_inbound_nat_rules_ids"].(*schema.Set).List()
 	loadBalancerInboundNatPoolIds := expandIDsToSubResources(loadBalancerInboundNatPoolIdsRaw)
 
+	primary := raw["primary"].(bool)
+	version := compute.IPVersion(raw["version"].(string))
+	if primary && version == compute.IPv6 {
+		return nil, fmt.Errorf("An IPv6 Primary IP Configuration is unsupported - instead add a IPv4 IP Configuration as the Primary and make the IPv6 IP Configuration the secondary")
+	}
+
 	ipConfiguration := compute.VirtualMachineScaleSetIPConfiguration{
 		Name: utils.String(raw["name"].(string)),
 		VirtualMachineScaleSetIPConfigurationProperties: &compute.VirtualMachineScaleSetIPConfigurationProperties{
-			Primary:                               utils.Bool(raw["primary"].(bool)),
-			PrivateIPAddressVersion:               compute.IPVersion(raw["version"].(string)),
+			Primary:                               utils.Bool(primary),
+			PrivateIPAddressVersion:               version,
 			ApplicationGatewayBackendAddressPools: applicationGatewayBackendAddressPoolIds,
 			ApplicationSecurityGroups:             applicationSecurityGroupIds,
 			LoadBalancerBackendAddressPools:       loadBalancerBackendAddressPoolIds,
@@ -346,7 +356,7 @@ func expandVirtualMachineScaleSetIPConfiguration(raw map[string]interface{}) com
 		ipConfiguration.VirtualMachineScaleSetIPConfigurationProperties.PublicIPAddressConfiguration = publicIPAddressConfig
 	}
 
-	return ipConfiguration
+	return &ipConfiguration, nil
 }
 
 func expandVirtualMachineScaleSetPublicIPAddress(raw map[string]interface{}) *compute.VirtualMachineScaleSetPublicIPAddressConfiguration {
@@ -387,7 +397,7 @@ func expandVirtualMachineScaleSetPublicIPAddress(raw map[string]interface{}) *co
 	return &publicIPAddressConfig
 }
 
-func ExpandVirtualMachineScaleSetNetworkInterfaceUpdate(input []interface{}) *[]compute.VirtualMachineScaleSetUpdateNetworkConfiguration {
+func ExpandVirtualMachineScaleSetNetworkInterfaceUpdate(input []interface{}) (*[]compute.VirtualMachineScaleSetUpdateNetworkConfiguration, error) {
 	output := make([]compute.VirtualMachineScaleSetUpdateNetworkConfiguration, 0)
 
 	for _, v := range input {
@@ -399,8 +409,12 @@ func ExpandVirtualMachineScaleSetNetworkInterfaceUpdate(input []interface{}) *[]
 		ipConfigurationsRaw := raw["ip_configuration"].([]interface{})
 		for _, configV := range ipConfigurationsRaw {
 			configRaw := configV.(map[string]interface{})
-			ipConfiguration := expandVirtualMachineScaleSetIPConfigurationUpdate(configRaw)
-			ipConfigurations = append(ipConfigurations, ipConfiguration)
+			ipConfiguration, err := expandVirtualMachineScaleSetIPConfigurationUpdate(configRaw)
+			if err != nil {
+				return nil, err
+			}
+
+			ipConfigurations = append(ipConfigurations, *ipConfiguration)
 		}
 
 		config := compute.VirtualMachineScaleSetUpdateNetworkConfiguration{
@@ -425,10 +439,10 @@ func ExpandVirtualMachineScaleSetNetworkInterfaceUpdate(input []interface{}) *[]
 		output = append(output, config)
 	}
 
-	return &output
+	return &output, nil
 }
 
-func expandVirtualMachineScaleSetIPConfigurationUpdate(raw map[string]interface{}) compute.VirtualMachineScaleSetUpdateIPConfiguration {
+func expandVirtualMachineScaleSetIPConfigurationUpdate(raw map[string]interface{}) (*compute.VirtualMachineScaleSetUpdateIPConfiguration, error) {
 	applicationGatewayBackendAddressPoolIdsRaw := raw["application_gateway_backend_address_pool_ids"].(*schema.Set).List()
 	applicationGatewayBackendAddressPoolIds := expandIDsToSubResources(applicationGatewayBackendAddressPoolIdsRaw)
 
@@ -441,11 +455,18 @@ func expandVirtualMachineScaleSetIPConfigurationUpdate(raw map[string]interface{
 	loadBalancerInboundNatPoolIdsRaw := raw["load_balancer_inbound_nat_rules_ids"].(*schema.Set).List()
 	loadBalancerInboundNatPoolIds := expandIDsToSubResources(loadBalancerInboundNatPoolIdsRaw)
 
+	primary := raw["primary"].(bool)
+	version := compute.IPVersion(raw["version"].(string))
+
+	if primary && version == compute.IPv6 {
+		return nil, fmt.Errorf("An IPv6 Primary IP Configuration is unsupported - instead add a IPv4 IP Configuration as the Primary and make the IPv6 IP Configuration the secondary")
+	}
+
 	ipConfiguration := compute.VirtualMachineScaleSetUpdateIPConfiguration{
 		Name: utils.String(raw["name"].(string)),
 		VirtualMachineScaleSetUpdateIPConfigurationProperties: &compute.VirtualMachineScaleSetUpdateIPConfigurationProperties{
-			Primary:                               utils.Bool(raw["primary"].(bool)),
-			PrivateIPAddressVersion:               compute.IPVersion(raw["version"].(string)),
+			Primary:                               utils.Bool(primary),
+			PrivateIPAddressVersion:               version,
 			ApplicationGatewayBackendAddressPools: applicationGatewayBackendAddressPoolIds,
 			ApplicationSecurityGroups:             applicationSecurityGroupIds,
 			LoadBalancerBackendAddressPools:       loadBalancerBackendAddressPoolIds,
@@ -466,7 +487,7 @@ func expandVirtualMachineScaleSetIPConfigurationUpdate(raw map[string]interface{
 		ipConfiguration.VirtualMachineScaleSetUpdateIPConfigurationProperties.PublicIPAddressConfiguration = publicIPAddressConfig
 	}
 
-	return ipConfiguration
+	return &ipConfiguration, nil
 }
 
 func expandVirtualMachineScaleSetPublicIPAddressUpdate(raw map[string]interface{}) *compute.VirtualMachineScaleSetUpdatePublicIPAddressConfiguration {
