@@ -1359,9 +1359,8 @@ resource "azurerm_linux_virtual_machine_scale_set" "test" {
     }
 
     ip_configuration {
-      name      = "second"
-      primary   = true
-      version   = "IPv6"
+      name    = "second"
+      version = "IPv6"
     }
   }
 }
