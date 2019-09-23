@@ -6,9 +6,9 @@ import (
 
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/helpers/tf"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/features"
 )
 
-// TODO: Requires import
 // TODO: secrets
 // TODO: BootDiagnostics
 
@@ -231,6 +231,34 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_otherPriorityRegular(t *testing.T
 					// not returned from the API
 					"admin_password",
 				},
+			},
+		},
+	})
+}
+
+func TestAccAzureRMLinuxVirtualMachineScaleSet_otherRequiresImport(t *testing.T) {
+	if !features.ShouldResourcesBeImported() {
+		t.Skip("Skipping since resources aren't required to be imported")
+		return
+	}
+	resourceName := "azurerm_linux_virtual_machine_scale_set.test"
+	ri := tf.AccRandTimeInt()
+	location := testLocation()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMLinuxVirtualMachineScaleSetDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_authPassword(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
+				),
+			},
+			{
+				Config:      testAccAzureRMLinuxVirtualMachineScaleSet_otherRequiresImport(ri, location),
+				ExpectError: testRequiresImportError("azurerm_linux_virtual_machine_scale_set"),
 			},
 		},
 	})
@@ -566,6 +594,47 @@ resource "azurerm_linux_virtual_machine_scale_set" "test" {
   }
 }
 `, template, rInt)
+}
+
+func testAccAzureRMLinuxVirtualMachineScaleSet_otherRequiresImport(rInt int, location string) string {
+	template := testAccAzureRMLinuxVirtualMachineScaleSet_authPassword(rInt, location)
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_linux_virtual_machine_scale_set" "import" {
+  name                = azurerm_linux_virtual_machine_scale_set.test.name
+  resource_group_name = azurerm_linux_virtual_machine_scale_set.test.resource_group_name
+  location            = azurerm_linux_virtual_machine_scale_set.test.location
+  sku                 = azurerm_linux_virtual_machine_scale_set.test.sku
+  instances           = azurerm_linux_virtual_machine_scale_set.test.instances
+  admin_username      = azurerm_linux_virtual_machine_scale_set.test.admin_username
+  admin_password      = "azurerm_linux_virtual_machine_scale_set.test.admin_password
+  disable_password_authentication = false
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "16.04-LTS"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+
+  network_interface {
+    name    = "example"
+    primary = true
+
+    ip_configuration {
+      name      = "internal"
+      primary   = true
+      subnet_id = azurerm_subnet.test.id
+    }
+  }
+}
+`, template)
 }
 
 func testAccAzureRMLinuxVirtualMachineScaleSet_otherTags(rInt int, location string) string {
