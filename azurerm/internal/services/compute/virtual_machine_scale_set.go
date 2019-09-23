@@ -228,6 +228,7 @@ func virtualMachineScaleSetPublicIPAddressSchema() *schema.Schema {
 				"idle_timeout_in_minutes": {
 					Type:         schema.TypeInt,
 					Optional:     true,
+					Computed:     true,
 					ValidateFunc: validation.IntBetween(4, 32),
 				},
 				"ip_tag": {
@@ -252,6 +253,9 @@ func virtualMachineScaleSetPublicIPAddressSchema() *schema.Schema {
 						},
 					},
 				},
+				// TODO: preview feature
+				// $ az feature register --namespace Microsoft.Network --name AllowBringYourOwnPublicIpAddress
+				// $ az provider register -n Microsoft.Network
 				"public_ip_prefix_id": {
 					Type:         schema.TypeString,
 					Optional:     true,
@@ -579,10 +583,10 @@ func flattenVirtualMachineScaleSetIPConfiguration(input compute.VirtualMachineSc
 		"public_ip_address": publicIPAddresses,
 		"subnet_id":         subnetId,
 		"version":           string(input.PrivateIPAddressVersion),
-		"application_gateway_backend_address_pool_ids": applicationGatewayBackendAddressPoolIds,
-		"application_security_group_ids":               applicationSecurityGroupIds,
-		"load_balancer_backend_address_pool_ids":       loadBalancerBackendAddressPoolIds,
-		"load_balancer_inbound_nat_rules_ids":          loadBalancerInboundNatRuleIds,
+		"application_gateway_backend_address_pool_ids": schema.NewSet(schema.HashString, applicationGatewayBackendAddressPoolIds),
+		"application_security_group_ids":               schema.NewSet(schema.HashString, applicationSecurityGroupIds),
+		"load_balancer_backend_address_pool_ids":       schema.NewSet(schema.HashString, loadBalancerBackendAddressPoolIds),
+		"load_balancer_inbound_nat_rules_ids":          schema.NewSet(schema.HashString, loadBalancerInboundNatRuleIds),
 	}
 }
 
