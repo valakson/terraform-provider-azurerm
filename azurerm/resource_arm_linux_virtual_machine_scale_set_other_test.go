@@ -1023,6 +1023,8 @@ resource "azurerm_key_vault" "test" {
   tenant_id           = data.azurerm_client_config.current.tenant_id
 
   sku_name = "standard"
+  enabled_for_template_deployment = true
+  enabled_for_deployment = true
 
   access_policy {
     tenant_id = data.azurerm_client_config.current.tenant_id
