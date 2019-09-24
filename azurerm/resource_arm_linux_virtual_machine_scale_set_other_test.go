@@ -10,8 +10,6 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/features"
 )
 
-// TODO: secrets
-
 func TestAccAzureRMLinuxVirtualMachineScaleSet_otherBootDiagnostics(t *testing.T) {
 	resourceName := "azurerm_linux_virtual_machine_scale_set.test"
 	ri := tf.AccRandTimeInt()
@@ -322,6 +320,71 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_otherRequiresImport(t *testing.T)
 			{
 				Config:      testAccAzureRMLinuxVirtualMachineScaleSet_otherRequiresImport(ri, location),
 				ExpectError: testRequiresImportError("azurerm_linux_virtual_machine_scale_set"),
+			},
+		},
+	})
+}
+
+func TestAccAzureRMLinuxVirtualMachineScaleSet_otherSecret(t *testing.T) {
+	resourceName := "azurerm_linux_virtual_machine_scale_set.test"
+	ri := tf.AccRandTimeInt()
+	location := testLocation()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMLinuxVirtualMachineScaleSetDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherSecret(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
+				),
+			},
+			{
+
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					// not returned from the API
+					"admin_password",
+				},
+			},
+			{
+				// update
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretUpdated(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
+				),
+			},
+			{
+
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					// not returned from the API
+					"admin_password",
+				},
+			},
+
+			{
+				// removed
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretRemoved(ri, location),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
+				),
+			},
+			{
+
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					// not returned from the API
+					"admin_password",
+				},
 			},
 		},
 	})
@@ -800,6 +863,283 @@ resource "azurerm_linux_virtual_machine_scale_set" "import" {
   }
 }
 `, template)
+}
+
+func testAccAzureRMLinuxVirtualMachineScaleSet_otherSecret(rInt int, location string, rString string) string {
+	template := testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretTemplate(rInt, location, rString)
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_linux_virtual_machine_scale_set" "test" {
+  name                 = "acctestvmss-%d"
+  resource_group_name  = azurerm_resource_group.test.name
+  location             = azurerm_resource_group.test.location
+  sku                  = "Standard_F2"
+  instances            = 1
+  admin_username       = "adminuser"
+  admin_password       = "P@ssword1234!"
+  disable_password_authentication = false
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "16.04-LTS"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+
+  network_interface {
+    name    = "example"
+    primary = true
+
+    ip_configuration {
+      name      = "internal"
+      primary   = true
+      subnet_id = azurerm_subnet.test.id
+    }
+  }
+
+  secret {
+    key_vault_id = azurerm_key_vault.test.id
+
+    certificate {
+      url = azurerm_key_vault_certificate.first.secret_id
+    }
+  }
+}
+`, template, rInt)
+}
+
+func testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretRemoved(rInt int, location string, rString string) string {
+	template := testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretTemplate(rInt, location, rString)
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_linux_virtual_machine_scale_set" "test" {
+  name                 = "acctestvmss-%d"
+  resource_group_name  = azurerm_resource_group.test.name
+  location             = azurerm_resource_group.test.location
+  sku                  = "Standard_F2"
+  instances            = 1
+  admin_username       = "adminuser"
+  admin_password       = "P@ssword1234!"
+  disable_password_authentication = false
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "16.04-LTS"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+
+  network_interface {
+    name    = "example"
+    primary = true
+
+    ip_configuration {
+      name      = "internal"
+      primary   = true
+      subnet_id = azurerm_subnet.test.id
+    }
+  }
+}
+`, template, rInt)
+}
+
+func testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretUpdated(rInt int, location string, rString string) string {
+	template := testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretTemplate(rInt, location, rString)
+	return fmt.Sprintf(`
+%s
+
+resource "azurerm_linux_virtual_machine_scale_set" "test" {
+  name                 = "acctestvmss-%d"
+  resource_group_name  = azurerm_resource_group.test.name
+  location             = azurerm_resource_group.test.location
+  sku                  = "Standard_F2"
+  instances            = 1
+  admin_username       = "adminuser"
+  admin_password       = "P@ssword1234!"
+  disable_password_authentication = false
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "16.04-LTS"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+
+  network_interface {
+    name    = "example"
+    primary = true
+
+    ip_configuration {
+      name      = "internal"
+      primary   = true
+      subnet_id = azurerm_subnet.test.id
+    }
+  }
+
+  secret {
+    key_vault_id = azurerm_key_vault.test.id
+
+    certificate {
+      url = azurerm_key_vault_certificate.first.secret_id
+    }
+
+    certificate {
+      url = azurerm_key_vault_certificate.second.secret_id
+    }
+  }
+}
+`, template, rInt)
+}
+
+func testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretTemplate(rInt int, location string, rString string) string {
+	template := testAccAzureRMLinuxVirtualMachineScaleSet_template(rInt, location)
+	return fmt.Sprintf(`
+%s
+
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_key_vault" "test" {
+  name                = "acctestkeyvault%s"
+  location            = azurerm_resource_group.test.location
+  resource_group_name = azurerm_resource_group.test.name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+
+  sku_name = "standard"
+
+  access_policy {
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = data.azurerm_client_config.current.service_principal_object_id
+
+    certificate_permissions = [
+      "create",
+      "delete",
+      "get",
+      "update",
+    ]
+
+    key_permissions = [
+      "create",
+    ]
+
+    secret_permissions = [
+      "set",
+    ]
+
+    storage_permissions = [
+      "set",
+    ]
+  }
+}
+
+resource "azurerm_key_vault_certificate" "first" {
+  name         = "first"
+  key_vault_id = azurerm_key_vault.test.id
+
+  certificate_policy {
+    issuer_parameters {
+      name = "Self"
+    }
+
+    key_properties {
+      exportable = true
+      key_size   = 2048
+      key_type   = "RSA"
+      reuse_key  = true
+    }
+
+    lifetime_action {
+      action {
+        action_type = "AutoRenew"
+      }
+
+      trigger {
+        days_before_expiry = 30
+      }
+    }
+
+    secret_properties {
+      content_type = "application/x-pkcs12"
+    }
+
+    x509_certificate_properties {
+      key_usage = [
+        "cRLSign",
+        "dataEncipherment",
+        "digitalSignature",
+        "keyAgreement",
+        "keyCertSign",
+        "keyEncipherment",
+      ]
+
+      subject            = "CN=hello-world-first"
+      validity_in_months = 12
+    }
+  }
+}
+
+resource "azurerm_key_vault_certificate" "second" {
+  name         = "second"
+  key_vault_id = azurerm_key_vault.test.id
+
+  certificate_policy {
+    issuer_parameters {
+      name = "Self"
+    }
+
+    key_properties {
+      exportable = true
+      key_size   = 2048
+      key_type   = "RSA"
+      reuse_key  = true
+    }
+
+    lifetime_action {
+      action {
+        action_type = "AutoRenew"
+      }
+
+      trigger {
+        days_before_expiry = 30
+      }
+    }
+
+    secret_properties {
+      content_type = "application/x-pkcs12"
+    }
+
+    x509_certificate_properties {
+      key_usage = [
+        "cRLSign",
+        "dataEncipherment",
+        "digitalSignature",
+        "keyAgreement",
+        "keyCertSign",
+        "keyEncipherment",
+      ]
+
+      subject            = "CN=hello-world-second"
+      validity_in_months = 12
+    }
+  }
+}
+`, template, rString)
 }
 
 func testAccAzureRMLinuxVirtualMachineScaleSet_otherTags(rInt int, location string) string {

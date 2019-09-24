@@ -161,6 +161,38 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 
 			"rolling_upgrade_policy": computeSvc.VirtualMachineScaleSetRollingUpgradePolicySchema(),
 
+			"secret": {
+				Type:     schema.TypeList,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						// whilst this isn't present in the nested object it's required when this is specified
+						"key_vault_id": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: azure.ValidateResourceID,
+						},
+
+						// whilst we /could/ flatten this to `certificate_urls` we're intentionally not to keep this
+						// closer to the Windows VMSS resource, which will also take a `store` param
+						"certificate": {
+							Type:     schema.TypeSet,
+							Required: true,
+							MinItems: 1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"url": {
+										Type:         schema.TypeString,
+										Required:     true,
+										ValidateFunc: azure.ValidateKeyVaultChildId,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+
 			"single_placement_group": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -276,6 +308,9 @@ func resourceArmLinuxVirtualMachineScaleSetCreate(d *schema.ResourceData, meta i
 		return fmt.Errorf("A `rolling_upgrade_policy` block must be specified when `upgrade_mode` is set to `Rolling`")
 	}
 
+	secretsRaw := d.Get("secret").([]interface{})
+	secrets := expandLinuxVirtualMachineScaleSetSecrets(secretsRaw)
+
 	zonesRaw := d.Get("zones").([]interface{})
 	zones := azure.ExpandZones(zonesRaw)
 
@@ -314,7 +349,7 @@ func resourceArmLinuxVirtualMachineScaleSetCreate(d *schema.ResourceData, meta i
 					PublicKeys: &sshKeys,
 				},
 			},
-			// TODO: secrets
+			Secrets: secrets,
 		},
 		DiagnosticsProfile: bootDiagnostics,
 		NetworkProfile:     networkProfile,
@@ -456,26 +491,49 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 		updateProps.SinglePlacementGroup = utils.Bool(d.Get("single_placement_group").(bool))
 	}
 
-	// TODO: secrets
-	if d.HasChange("admin_ssh_key") || d.HasChange("custom_data") || d.HasChange("disable_password_authentication") || d.HasChange("provision_vm_agent") {
+	if d.HasChange("admin_ssh_key") || d.HasChange("custom_data") || d.HasChange("disable_password_authentication") || d.HasChange("provision_vm_agent") || d.HasChange("secret") {
 		updateConfig = true
 
-		sshKeysRaw := d.Get("admin_ssh_key").(*schema.Set).List()
-		sshKeys := computeSvc.ExpandSSHKeys(sshKeysRaw)
-		updateProps.VirtualMachineProfile.OsProfile = &compute.VirtualMachineScaleSetUpdateOSProfile{
-			LinuxConfiguration: &compute.LinuxConfiguration{
-				DisablePasswordAuthentication: utils.Bool(d.Get("disable_password_authentication").(bool)),
-				ProvisionVMAgent:              utils.Bool(d.Get("provision_vm_agent").(bool)),
-				SSH: &compute.SSHConfiguration{
+		osProfile := compute.VirtualMachineScaleSetUpdateOSProfile{}
+
+		if d.HasChange("admin_ssh_key") || d.HasChange("disable_password_authentication") || d.HasChange("provision_vm_agent") {
+			linuxConfig := compute.LinuxConfiguration{}
+
+			if d.HasChange("admin_ssh_key") {
+				sshKeysRaw := d.Get("admin_ssh_key").(*schema.Set).List()
+				sshKeys := computeSvc.ExpandSSHKeys(sshKeysRaw)
+				linuxConfig.SSH = &compute.SSHConfiguration{
 					PublicKeys: &sshKeys,
-				},
-			},
+				}
+			}
+
+			if d.HasChange("disable_password_authentication") {
+				linuxConfig.DisablePasswordAuthentication = utils.Bool(d.Get("disable_password_authentication").(bool))
+			}
+
+			if d.HasChange("provision_vm_agent") {
+				linuxConfig.ProvisionVMAgent = utils.Bool(d.Get("provision_vm_agent").(bool))
+			}
+
+			osProfile.LinuxConfiguration = &linuxConfig
 		}
 
-		if v, ok := d.GetOk("custom_data"); ok {
-			updateProps.VirtualMachineProfile.OsProfile.CustomData = utils.String(v.(string))
-			// TODO: if we update the customData do we need to cycle the nodes?
+		if d.HasChange("custom_data") {
+			// customData can only be sent if it's a base64 encoded string,
+			// so it's not possible to remove this without tainting the resource
+			// TODO: we could potentially add this to a customizeDiff?
+			if v, ok := d.GetOk("custom_data"); ok {
+				osProfile.CustomData = utils.String(v.(string))
+				// TODO: if we update the customData do we need to cycle the nodes?
+			}
 		}
+
+		if d.HasChange("secret") {
+			secretsRaw := d.Get("secret").([]interface{})
+			osProfile.Secrets = expandLinuxVirtualMachineScaleSetSecrets(secretsRaw)
+		}
+
+		updateProps.VirtualMachineProfile.OsProfile = &osProfile
 	}
 
 	if d.HasChange("data_disk") || d.HasChange("os_disk") || d.HasChange("source_image_id") || d.HasChange("source_image_reference") {
@@ -745,6 +803,10 @@ func resourceArmLinuxVirtualMachineScaleSetRead(d *schema.ResourceData, meta int
 					return fmt.Errorf("Error setting `admin_ssh_key`: %+v", err)
 				}
 			}
+
+			if err := d.Set("secret", flattenLinuxVirtualMachineScaleSetSecrets(osProfile.Secrets)); err != nil {
+				return fmt.Errorf("Error setting `secret`: %+v", err)
+			}
 		}
 
 		if nwProfile := profile.NetworkProfile; nwProfile != nil {
@@ -842,4 +904,69 @@ func resourceArmLinuxVirtualMachineScaleSetDelete(d *schema.ResourceData, meta i
 	log.Printf("[DEBUG] Deleted Linux Virtual Machine Scale Set %q (Resource Group %q).", name, resourceGroup)
 
 	return nil
+}
+
+func expandLinuxVirtualMachineScaleSetSecrets(input []interface{}) *[]compute.VaultSecretGroup {
+	output := make([]compute.VaultSecretGroup, 0)
+
+	for _, raw := range input {
+		v := raw.(map[string]interface{})
+
+		keyVaultId := v["key_vault_id"].(string)
+		certificatesRaw := v["certificate"].(*schema.Set).List()
+		certificates := make([]compute.VaultCertificate, 0)
+		for _, certificateRaw := range certificatesRaw {
+			certificateV := certificateRaw.(map[string]interface{})
+
+			url := certificateV["url"].(string)
+			certificates = append(certificates, compute.VaultCertificate{
+				CertificateURL: utils.String(url),
+			})
+		}
+
+		output = append(output, compute.VaultSecretGroup{
+			SourceVault: &compute.SubResource{
+				ID: utils.String(keyVaultId),
+			},
+			VaultCertificates: &certificates,
+		})
+	}
+
+	return &output
+}
+
+func flattenLinuxVirtualMachineScaleSetSecrets(input *[]compute.VaultSecretGroup) []interface{} {
+	if input == nil {
+		return []interface{}{}
+	}
+
+	output := make([]interface{}, 0)
+
+	for _, v := range *input {
+		keyVaultId := ""
+		if v.SourceVault != nil && v.SourceVault.ID != nil {
+			keyVaultId = *v.SourceVault.ID
+		}
+
+		certificates := make([]interface{}, 0)
+
+		if v.VaultCertificates != nil {
+			for _, c := range *v.VaultCertificates {
+				if c.CertificateURL == nil {
+					continue
+				}
+
+				certificates = append(certificates, map[string]interface{}{
+					"url": *c.CertificateURL,
+				})
+			}
+		}
+
+		output = append(output, map[string]interface{}{
+			"key_vault_id": keyVaultId,
+			"certificate":  certificates,
+		})
+	}
+
+	return output
 }

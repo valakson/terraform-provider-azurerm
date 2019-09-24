@@ -1056,6 +1056,7 @@ func FlattenVirtualMachineScaleSetSourceImageReference(input *compute.ImageRefer
 	}
 }
 
+// TODO: a test covering this
 func VirtualMachineScaleSetAutomatedOSUpgradePolicySchema() *schema.Schema {
 	return &schema.Schema{
 		Type:          schema.TypeList,
@@ -1078,6 +1079,7 @@ func VirtualMachineScaleSetAutomatedOSUpgradePolicySchema() *schema.Schema {
 	}
 }
 
+// TODO: a test covering this
 func VirtualMachineScaleSetRollingUpgradePolicySchema() *schema.Schema {
 	return &schema.Schema{
 		Type:          schema.TypeList,
@@ -1088,7 +1090,7 @@ func VirtualMachineScaleSetRollingUpgradePolicySchema() *schema.Schema {
 			Schema: map[string]*schema.Schema{
 				// whilst this isn't present in the nested object it's required when this is specified
 				"health_probe_id": {
-					Type:         schema.TypeInt,
+					Type:         schema.TypeString,
 					Required:     true,
 					ForceNew:     true,
 					ValidateFunc: azure.ValidateResourceID,
