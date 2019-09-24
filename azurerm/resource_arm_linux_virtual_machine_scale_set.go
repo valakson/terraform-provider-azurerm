@@ -46,6 +46,7 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 			"admin_username": {
 				Type:         schema.TypeString,
 				Required:     true,
+				ForceNew:     true,
 				ValidateFunc: validate.NoEmptyStrings,
 			},
 
@@ -71,6 +72,7 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 			"admin_password": {
 				Type:      schema.TypeString,
 				Optional:  true,
+				ForceNew:  true,
 				Sensitive: true,
 			},
 
@@ -102,6 +104,7 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 				Default:  true, // TODO: check this default with Azure / raise an error if a passwords specified and no ssh keys?
 			},
 
+			// TODO: a test covering this field
 			"do_not_run_extensions_on_overprovisioned_machines": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -125,6 +128,7 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 				Default:  -1,
 			},
 
+			// TODO: a test updating this
 			"overprovision": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -209,9 +213,11 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 
 			"tags": tags.Schema(),
 
+			// TODO: can this be updated?
 			"upgrade_mode": {
 				Type:     schema.TypeString,
 				Optional: true,
+				ForceNew: true,
 				Default:  string(compute.Manual),
 				ValidateFunc: validation.StringInSlice([]string{
 					string(compute.Automatic),

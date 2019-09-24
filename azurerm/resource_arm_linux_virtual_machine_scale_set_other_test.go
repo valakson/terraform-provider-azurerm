@@ -328,6 +328,7 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_otherRequiresImport(t *testing.T)
 func TestAccAzureRMLinuxVirtualMachineScaleSet_otherSecret(t *testing.T) {
 	resourceName := "azurerm_linux_virtual_machine_scale_set.test"
 	ri := tf.AccRandTimeInt()
+	rs := acctest.RandString(4)
 	location := testLocation()
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -336,7 +337,7 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_otherSecret(t *testing.T) {
 		CheckDestroy: testCheckAzureRMLinuxVirtualMachineScaleSetDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherSecret(ri, location),
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherSecret(ri, location, rs),
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
 				),
@@ -353,7 +354,7 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_otherSecret(t *testing.T) {
 			},
 			{
 				// update
-				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretUpdated(ri, location),
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretUpdated(ri, location, rs),
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
 				),
@@ -371,7 +372,7 @@ func TestAccAzureRMLinuxVirtualMachineScaleSet_otherSecret(t *testing.T) {
 
 			{
 				// removed
-				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretRemoved(ri, location),
+				Config: testAccAzureRMLinuxVirtualMachineScaleSet_otherSecretRemoved(ri, location, rs),
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMLinuxVirtualMachineScaleSetExists(resourceName),
 				),
