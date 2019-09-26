@@ -18,6 +18,9 @@ import (
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
+// TODO:
+// Termination Notifications for Low Priority VMSS: https://docs.microsoft.com/en-us/azure/virtual-machine-scale-sets/virtual-machine-scale-sets-terminate-notification
+// Instance Protection: https://docs.microsoft.com/en-us/azure/virtual-machine-scale-sets/virtual-machine-scale-sets-instance-protection
 func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceArmLinuxVirtualMachineScaleSetCreate,
@@ -28,7 +31,8 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 			State: schema.ImportStatePassthrough,
 		},
 
-		// TODO: exposing requireGuestProvisionSignal in the swagger
+		// TODO: exposing requireGuestProvisionSignal once it's available
+		// https://github.com/Azure/azure-rest-api-specs/pull/7246
 
 		Schema: map[string]*schema.Schema{
 			"name": {
@@ -104,7 +108,6 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 				Default:  true, // TODO: check this default with Azure / raise an error if a passwords specified and no ssh keys?
 			},
 
-			// TODO: a test covering this field
 			"do_not_run_extensions_on_overprovisioned_machines": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -607,7 +610,7 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 		sku := existing.Sku
 
 		if d.HasChange("sku") {
-			updateInstances = true // TODO: should this be conditional upon it being manual too?
+			updateInstances = true
 
 			sku.Name = utils.String(d.Get("sku").(string))
 		}
@@ -641,15 +644,11 @@ func resourceArmLinuxVirtualMachineScaleSetUpdate(d *schema.ResourceData, meta i
 		log.Printf("[DEBUG] Updated Linux Virtual Machine Scale Set %q (Resource Group %q).", name, resourceGroup)
 	}
 
-	// TODO: delta updates
-
-	// TODO: if rolling the image and there's a manual healthcheck should we cycle this here? flag?
 	// client.Reimage()
 	// ConvertToSinglePlacementGroup
 
-	// TODO: does this want to become a flag?
 	// if we update the SKU, we also need to subsequently roll the instances using the `UpdateInstances` API
-	if updateInstances {
+	if updateInstances { // TODO: does this want to be a user-configurable flag?
 		log.Printf("[DEBUG] Rolling the VM Instances for Linux Virtual Machine Scale Set %q (Resource Group %q)..", name, resourceGroup)
 		instancesClient := meta.(*ArmClient).compute.VMScaleSetVMsClient
 		instances, err := instancesClient.ListComplete(ctx, resourceGroup, name, "", "", "")
