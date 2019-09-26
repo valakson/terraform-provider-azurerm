@@ -217,7 +217,6 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 
 			"tags": tags.Schema(),
 
-			// TODO: can this be updated?
 			"upgrade_mode": {
 				Type:     schema.TypeString,
 				Optional: true,
