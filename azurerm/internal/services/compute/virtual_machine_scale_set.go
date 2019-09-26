@@ -93,6 +93,7 @@ func VirtualMachineScaleSetBootDiagnosticsSchema() *schema.Schema {
 		MaxItems: 1,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
+				// TODO: should this be `storage_account_endpoint`?
 				"storage_account_uri": {
 					Type:     schema.TypeString,
 					Required: true,
@@ -192,7 +193,6 @@ func VirtualMachineScaleSetNetworkInterfaceSchema() *schema.Schema {
 
 func virtualMachineScaleSetIPConfigurationSchema() *schema.Schema {
 	return &schema.Schema{
-		// TODO: does this want to be a Set?
 		Type:     schema.TypeList,
 		Required: true,
 		// TODO: confirm this is the same as MinItems: 1
@@ -202,11 +202,6 @@ func virtualMachineScaleSetIPConfigurationSchema() *schema.Schema {
 					Type:         schema.TypeString,
 					Required:     true,
 					ValidateFunc: validate.NoEmptyStrings,
-				},
-				"subnet_id": {
-					Type:         schema.TypeString,
-					Optional:     true, // TODO: confirm if IPv6 needs this Optional, it may need to be Required
-					ValidateFunc: azure.ValidateResourceID,
 				},
 
 				// Optional
@@ -250,6 +245,12 @@ func virtualMachineScaleSetIPConfigurationSchema() *schema.Schema {
 
 				"public_ip_address": virtualMachineScaleSetPublicIPAddressSchema(),
 
+				"subnet_id": {
+					Type:         schema.TypeString,
+					Optional:     true,
+					ValidateFunc: azure.ValidateResourceID,
+				},
+
 				"version": {
 					Type:     schema.TypeString,
 					Optional: true,
@@ -276,7 +277,7 @@ func virtualMachineScaleSetPublicIPAddressSchema() *schema.Schema {
 					ValidateFunc: validate.NoEmptyStrings,
 				},
 
-				// TODO: confirm Required/Optional here
+				// Optional
 				"domain_name_label": {
 					Type:         schema.TypeString,
 					Optional:     true,
@@ -1062,6 +1063,7 @@ func VirtualMachineScaleSetAutomatedOSUpgradePolicySchema() *schema.Schema {
 	return &schema.Schema{
 		Type:          schema.TypeList,
 		Optional:      true,
+		ForceNew:      true,
 		ConflictsWith: []string{"rolling_upgrade_policy"},
 		MaxItems:      1,
 		Elem: &schema.Resource{
@@ -1070,47 +1072,12 @@ func VirtualMachineScaleSetAutomatedOSUpgradePolicySchema() *schema.Schema {
 				"disable_automatic_rollback": {
 					Type:     schema.TypeBool,
 					Required: true,
+					ForceNew: true,
 				},
 				"enable_automatic_os_upgrade": {
 					Type:     schema.TypeBool,
 					Required: true,
-				},
-			},
-		},
-	}
-}
-
-// TODO: a test covering this
-func VirtualMachineScaleSetRollingUpgradePolicySchema() *schema.Schema {
-	return &schema.Schema{
-		Type:          schema.TypeList,
-		Optional:      true,
-		ConflictsWith: []string{"automatic_os_upgrade_policy"},
-		MaxItems:      1,
-		Elem: &schema.Resource{
-			Schema: map[string]*schema.Schema{
-				// whilst this isn't present in the nested object it's required when this is specified
-				"health_probe_id": {
-					Type:         schema.TypeString,
-					Required:     true,
-					ForceNew:     true,
-					ValidateFunc: azure.ValidateResourceID,
-				},
-				"max_batch_instance_percent": {
-					Type:     schema.TypeInt,
-					Required: true,
-				},
-				"max_unhealthy_instance_percent": {
-					Type:     schema.TypeInt,
-					Required: true,
-				},
-				"max_unhealthy_upgraded_instance_percent": {
-					Type:     schema.TypeInt,
-					Required: true,
-				},
-				"pause_time_between_batches": {
-					Type:     schema.TypeString,
-					Required: true,
+					ForceNew: true,
 				},
 			},
 		},
@@ -1126,29 +1093,6 @@ func ExpandVirtualMachineScaleSetAutomaticUpgradePolicy(input []interface{}) *co
 	return &compute.AutomaticOSUpgradePolicy{
 		DisableAutomaticRollback: utils.Bool(raw["disable_automatic_rollback"].(bool)),
 		EnableAutomaticOSUpgrade: utils.Bool(raw["enable_automatic_os_upgrade"].(bool)),
-	}
-}
-
-type VirtualMachineScaleSetExpandedUpgradePolicy struct {
-	HealthProbeID string
-	UpgradePolicy compute.RollingUpgradePolicy
-}
-
-func ExpandVirtualMachineScaleSetRollingUpgradePolicy(input []interface{}) *VirtualMachineScaleSetExpandedUpgradePolicy {
-	if len(input) == 0 {
-		return nil
-	}
-
-	raw := input[0].(map[string]interface{})
-
-	return &VirtualMachineScaleSetExpandedUpgradePolicy{
-		HealthProbeID: raw["health_probe_id"].(string),
-		UpgradePolicy: compute.RollingUpgradePolicy{
-			MaxBatchInstancePercent:             utils.Int32(int32(raw["max_batch_instance_percent"].(int))),
-			MaxUnhealthyInstancePercent:         utils.Int32(int32(raw["max_unhealthy_instance_percent"].(int))),
-			MaxUnhealthyUpgradedInstancePercent: utils.Int32(int32(raw["max_unhealthy_upgraded_instance_percent"].(int))),
-			PauseTimeBetweenBatches:             utils.String(raw["pause_time_between_batches"].(string)),
-		},
 	}
 }
 
@@ -1171,6 +1115,72 @@ func FlattenVirtualMachineScaleSetAutomaticOSUpgradePolicy(input *compute.Automa
 		map[string]interface{}{
 			"disable_automatic_rollback":  disableAutomaticRollback,
 			"enable_automatic_os_upgrade": enableAutomaticOSUpgrade,
+		},
+	}
+}
+
+// TODO: a test covering this
+func VirtualMachineScaleSetRollingUpgradePolicySchema() *schema.Schema {
+	return &schema.Schema{
+		Type:          schema.TypeList,
+		Optional:      true,
+		ForceNew:      true,
+		ConflictsWith: []string{"automatic_os_upgrade_policy"},
+		MaxItems:      1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				// whilst this isn't present in the nested object it's required when this is specified
+				"health_probe_id": {
+					Type:         schema.TypeString,
+					Required:     true,
+					ForceNew:     true,
+					ValidateFunc: azure.ValidateResourceID,
+				},
+				"max_batch_instance_percent": {
+					Type:     schema.TypeInt,
+					Required: true,
+					ForceNew: true,
+				},
+				"max_unhealthy_instance_percent": {
+					Type:     schema.TypeInt,
+					Required: true,
+					ForceNew: true,
+				},
+				"max_unhealthy_upgraded_instance_percent": {
+					Type:     schema.TypeInt,
+					Required: true,
+					ForceNew: true,
+				},
+				"pause_time_between_batches": {
+					Type:     schema.TypeString,
+					Required: true,
+					ForceNew: true,
+					// TODO: ISO 8601 validation
+				},
+			},
+		},
+	}
+}
+
+type VirtualMachineScaleSetExpandedUpgradePolicy struct {
+	HealthProbeID string
+	UpgradePolicy compute.RollingUpgradePolicy
+}
+
+func ExpandVirtualMachineScaleSetRollingUpgradePolicy(input []interface{}) *VirtualMachineScaleSetExpandedUpgradePolicy {
+	if len(input) == 0 {
+		return nil
+	}
+
+	raw := input[0].(map[string]interface{})
+
+	return &VirtualMachineScaleSetExpandedUpgradePolicy{
+		HealthProbeID: raw["health_probe_id"].(string),
+		UpgradePolicy: compute.RollingUpgradePolicy{
+			MaxBatchInstancePercent:             utils.Int32(int32(raw["max_batch_instance_percent"].(int))),
+			MaxUnhealthyInstancePercent:         utils.Int32(int32(raw["max_unhealthy_instance_percent"].(int))),
+			MaxUnhealthyUpgradedInstancePercent: utils.Int32(int32(raw["max_unhealthy_upgraded_instance_percent"].(int))),
+			PauseTimeBetweenBatches:             utils.String(raw["pause_time_between_batches"].(string)),
 		},
 	}
 }

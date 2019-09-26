@@ -129,6 +129,7 @@ func resourceArmLinuxVirtualMachineScaleSet() *schema.Resource {
 			},
 
 			// TODO: a test updating this
+			// TODO: in Azure this is defaulted on?
 			"overprovision": {
 				Type:     schema.TypeBool,
 				Optional: true,
