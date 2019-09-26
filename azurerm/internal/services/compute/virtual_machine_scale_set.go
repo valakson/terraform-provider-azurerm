@@ -1152,10 +1152,10 @@ func VirtualMachineScaleSetRollingUpgradePolicySchema() *schema.Schema {
 					ForceNew: true,
 				},
 				"pause_time_between_batches": {
-					Type:     schema.TypeString,
-					Required: true,
-					ForceNew: true,
-					// TODO: ISO 8601 validation
+					Type:         schema.TypeString,
+					Required:     true,
+					ForceNew:     true,
+					ValidateFunc: validate.ISO8601Duration,
 				},
 			},
 		},
