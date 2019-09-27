@@ -63,7 +63,7 @@ func resourceArmApiManagementApi() *schema.Resource {
 
 			"revision": {
 				Type:         schema.TypeString,
-				Required:     true,
+				Optional:     true,
 				ForceNew:     true,
 				ValidateFunc: validate.NoEmptyStrings,
 			},
@@ -126,7 +126,6 @@ func resourceArmApiManagementApi() *schema.Resource {
 			"service_url": {
 				Type:     schema.TypeString,
 				Optional: true,
-				Computed: true,
 			},
 
 			"subscription_key_parameter_names": {
@@ -159,7 +158,7 @@ func resourceArmApiManagementApi() *schema.Resource {
 			// Computed
 			"is_current": {
 				Type:     schema.TypeBool,
-				Computed: true,
+				Optional: true,
 			},
 
 			"is_online": {
@@ -169,12 +168,14 @@ func resourceArmApiManagementApi() *schema.Resource {
 
 			"version": {
 				Type:     schema.TypeString,
-				Computed: true,
+				Optional: true,
+				ForceNew: true,
 			},
 
 			"version_set_id": {
 				Type:     schema.TypeString,
-				Computed: true,
+				Optional: true,
+				ForceNew: true,
 			},
 		},
 	}
@@ -190,6 +191,8 @@ func resourceArmApiManagementApiCreateUpdate(d *schema.ResourceData, meta interf
 	revision := d.Get("revision").(string)
 	path := d.Get("path").(string)
 	apiId := fmt.Sprintf("%s;rev=%s", name, revision)
+	apiVersionSetId := d.Get("version_set_id").(string)
+	apiVersion := d.Get("version").(string)
 
 	if features.ShouldResourcesBeImported() && d.IsNewResource() {
 		existing, err := client.Get(ctx, resourceGroup, serviceName, apiId)
@@ -261,6 +264,8 @@ func resourceArmApiManagementApiCreateUpdate(d *schema.ResourceData, meta interf
 			Description:                   utils.String(description),
 			DisplayName:                   utils.String(displayName),
 			Path:                          utils.String(path),
+			APIVersion:                    utils.String(apiVersion),
+			APIVersionSetID:               utils.String(apiVersionSetId),
 			Protocols:                     protocols,
 			ServiceURL:                    utils.String(serviceUrl),
 			SubscriptionKeyParameterNames: subscriptionKeyParameterNames,
