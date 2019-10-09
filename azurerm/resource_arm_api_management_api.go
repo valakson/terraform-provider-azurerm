@@ -149,6 +149,21 @@ func resourceArmApiManagementApi() *schema.Resource {
 				},
 			},
 
+			"authentication_settings": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"subscription_key_required": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  false,
+						},
+					},
+				},
+			},
+
 			"soap_pass_through": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -158,7 +173,7 @@ func resourceArmApiManagementApi() *schema.Resource {
 			// Computed
 			"is_current": {
 				Type:     schema.TypeBool,
-				Optional: true,
+				Computed: true,
 			},
 
 			"is_online": {
@@ -250,6 +265,9 @@ func resourceArmApiManagementApiCreateUpdate(d *schema.ResourceData, meta interf
 	subscriptionKeyParameterNamesRaw := d.Get("subscription_key_parameter_names").([]interface{})
 	subscriptionKeyParameterNames := expandApiManagementApiSubscriptionKeyParamNames(subscriptionKeyParameterNamesRaw)
 
+	authenticationSettingsRaw := d.Get("authentication_settings").([]interface{})
+	authenticationSettings := expandApiManagementApiAuthenticationSettings(authenticationSettingsRaw)
+
 	var apiType apimanagement.APIType
 	soapPassThrough := d.Get("soap_pass_through").(bool)
 	if soapPassThrough {
@@ -269,6 +287,7 @@ func resourceArmApiManagementApiCreateUpdate(d *schema.ResourceData, meta interf
 			Protocols:                     protocols,
 			ServiceURL:                    utils.String(serviceUrl),
 			SubscriptionKeyParameterNames: subscriptionKeyParameterNames,
+			AuthenticationSettings:        authenticationSettings,
 		},
 	}
 
@@ -412,6 +431,21 @@ func expandApiManagementApiSubscriptionKeyParamNames(input []interface{}) *apima
 	contract := apimanagement.SubscriptionKeyParameterNamesContract{
 		Query:  utils.String(query),
 		Header: utils.String(header),
+	}
+	return &contract
+}
+
+func expandApiManagementApiAuthenticationSettings(input []interface{}) *apimanagement.AuthenticationSettingsContract {
+	if len(input) == 0 {
+		return nil
+	}
+	v := input[0].(map[string]interface{})
+
+	subscriptionKeyRequired := v["subscription_key_required"].(bool)
+	contract := apimanagement.AuthenticationSettingsContract{
+		OAuth2:                  nil,
+		Openid:                  nil,
+		SubscriptionKeyRequired: utils.Bool(subscriptionKeyRequired),
 	}
 	return &contract
 }
